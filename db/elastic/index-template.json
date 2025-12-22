@@ -1,0 +1,21 @@
+{
+  "index_patterns": ["data-*", "processed-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "refresh_interval": "1s"
+    },
+    "mappings": {
+      "properties": {
+        "doc_id": { "type": "keyword" },
+        "source": { "type": "keyword" },
+        "url": { "type": "keyword" },
+        "title": { "type": "text" },
+        "message": { "type": "text" },
+        "timestamp": { "type": "date" },
+        "processed_at": { "type": "date" }
+      }
+    }
+  }
+}

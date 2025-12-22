@@ -44,7 +44,7 @@ def main() -> None:
     bulk_body = build_bulk_lines(SETTINGS.index_name, docs)
 
     status, resp_text = http_post(
-        f"{SETTINGS.es_url}/_bulk",
+        f"{SETTINGS.es_url}/_bulk?pipeline=standardize-v1",
         bulk_body,
         headers={"Content-Type": "application/x-ndjson"},
     )
