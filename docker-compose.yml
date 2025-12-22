@@ -1,0 +1,77 @@
+services:
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION:-8.13.4}
+    container_name: es01
+    environment:
+      - cluster.name=${CLUSTER_NAME:-elastic-cluster}
+      - node.name=es01
+      - discovery.seed_hosts=es02,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+
+      # Lokal/Lab: Security aus (einfacher Start). Für "echtes" Setup später aktivieren.
+      - xpack.security.enabled=false
+
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms${ES_HEAP:-1g} -Xmx${ES_HEAP:-1g}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - esdata01:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"   # nur ein Node nach außen reicht
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [esnet]
+
+  es02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION:-8.13.4}
+    container_name: es02
+    environment:
+      - cluster.name=${CLUSTER_NAME:-elastic-cluster}
+      - node.name=es02
+      - discovery.seed_hosts=es01,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms${ES_HEAP:-1g} -Xmx${ES_HEAP:-1g}
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - esdata02:/usr/share/elasticsearch/data
+    networks: [esnet]
+
+  es03:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION:-8.13.4}
+    container_name: es03
+    environment:
+      - cluster.name=${CLUSTER_NAME:-elastic-cluster}
+      - node.name=es03
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02,es03
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms${ES_HEAP:-1g} -Xmx${ES_HEAP:-1g}
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - esdata03:/usr/share/elasticsearch/data
+    networks: [esnet]
+
+volumes:
+  esdata01:
+  esdata02:
+  esdata03:
+
+networks:
+  esnet:
+    driver: bridge
