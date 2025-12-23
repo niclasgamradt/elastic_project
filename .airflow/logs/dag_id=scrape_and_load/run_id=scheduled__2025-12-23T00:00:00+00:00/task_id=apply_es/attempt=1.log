@@ -1,0 +1,17 @@
+{"timestamp":"2025-12-23T14:59:31.316079Z","level":"info","event":"DAG bundles loaded: dags-folder, example_dags","logger":"airflow.dag_processing.bundles.manager.DagBundlesManager","filename":"manager.py","lineno":179}
+{"timestamp":"2025-12-23T14:59:31.316447Z","level":"info","event":"Filling up the DagBag from /home/gamradt/uni/data/elastic_project/dags/scrape_and_load.py","logger":"airflow.models.dagbag.DagBag","filename":"dagbag.py","lineno":593}
+{"timestamp":"2025-12-23T14:59:31.323112Z","level":"warning","event":"The `airflow.operators.python.PythonOperator` attribute is deprecated. Please use `'airflow.providers.standard.operators.python.PythonOperator'`.","category":"DeprecatedImportWarning","filename":"/home/gamradt/uni/data/elastic_project/dags/scrape_and_load.py","lineno":12,"logger":"py.warnings"}
+{"timestamp":"2025-12-23T14:59:31.346240Z","level":"info","event":"Task instance is in running state","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.346330Z","level":"info","event":" Previous state of the Task instance: TaskInstanceState.QUEUED","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.346497Z","level":"info","event":"Current task name:apply_es","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.346549Z","level":"info","event":"Dag name:scrape_and_load","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.354450Z","level":"info","event":"template: 200 True","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.357283Z","level":"info","event":"pipeline: 200 True","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.360814Z","level":"info","event":"index data-2024: 400 {'root_cause': [{'type': 'resource_already_exists_exception', 'reason': 'index [data-2024/swK4nhQlT9u2sHhLXfaI-g] already exists', 'index_uuid': 'swK4nhQlT9u2sHhLXfaI-g', 'index': 'data-2024'}], 'type': 'resource_already_exists_exception', 'reason': 'index [data-2024/swK4nhQlT9u2sHhLXfaI-g] already exists', 'index_uuid': 'swK4nhQlT9u2sHhLXfaI-g', 'index': 'data-2024'}","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.364104Z","level":"info","event":"index data-archive: 400 {'root_cause': [{'type': 'resource_already_exists_exception', 'reason': 'index [data-archive/djmW5S3WQLutuJ8CKB1MdA] already exists', 'index_uuid': 'djmW5S3WQLutuJ8CKB1MdA', 'index': 'data-archive'}], 'type': 'resource_already_exists_exception', 'reason': 'index [data-archive/djmW5S3WQLutuJ8CKB1MdA] already exists', 'index_uuid': 'djmW5S3WQLutuJ8CKB1MdA', 'index': 'data-archive'}","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.367696Z","level":"info","event":"aliases: 200 True","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.370286Z","level":"info","event":"health: 200 {'status': 'green', 'number_of_nodes': 3, 'active_shards': 4}","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.370428Z","level":"info","event":"Done. Returned value was: None","logger":"airflow.task.operators.airflow.providers.standard.operators.python.PythonOperator","filename":"python.py","lineno":217}
+{"timestamp":"2025-12-23T14:59:31.424007Z","level":"info","event":"Task instance in success state","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.424117Z","level":"info","event":" Previous state of the Task instance: TaskInstanceState.RUNNING","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:31.424199Z","level":"info","event":"Task operator:<Task(PythonOperator): apply_es>","logger":"task.stdout"}

@@ -1,0 +1,15 @@
+{"timestamp":"2025-12-23T14:59:35.306327Z","level":"info","event":"DAG bundles loaded: dags-folder, example_dags","logger":"airflow.dag_processing.bundles.manager.DagBundlesManager","filename":"manager.py","lineno":179}
+{"timestamp":"2025-12-23T14:59:35.306730Z","level":"info","event":"Filling up the DagBag from /home/gamradt/uni/data/elastic_project/dags/scrape_and_load.py","logger":"airflow.models.dagbag.DagBag","filename":"dagbag.py","lineno":593}
+{"timestamp":"2025-12-23T14:59:35.312540Z","level":"warning","event":"The `airflow.operators.python.PythonOperator` attribute is deprecated. Please use `'airflow.providers.standard.operators.python.PythonOperator'`.","category":"DeprecatedImportWarning","filename":"/home/gamradt/uni/data/elastic_project/dags/scrape_and_load.py","lineno":12,"logger":"py.warnings"}
+{"timestamp":"2025-12-23T14:59:35.325139Z","level":"info","event":"Task instance is in running state","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.325219Z","level":"info","event":" Previous state of the Task instance: TaskInstanceState.QUEUED","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.325341Z","level":"info","event":"Current task name:post_checks","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.325369Z","level":"info","event":"Dag name:scrape_and_load","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.336257Z","level":"info","event":"cluster: {'status': 'green', 'number_of_nodes': 3}","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.336364Z","level":"info","event":"count: 2","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.357886Z","level":"info","event":"last_docs: [{'source': 'example', 'title': 'Example Item', 'doc_id': 'd3ad1195b955596bd1ac231d70e9bdb5a57883c5e7ec94c2d715d56c9d40ad69', 'url': 'https://example.com', 'timestamp': '2025-12-23T14:59:32.000Z'}, {'source': 'example', 'title': 'Example Item', 'doc_id': '5cd42f6880beda565aa868406f33c99fa4c52d5a94555a9ee95911a3b6f1e597', 'url': 'https://example.com', 'timestamp': '2025-12-23T14:40:03.000Z'}]","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.378010Z","level":"info","event":"agg_by_source: [{'key': 'example', 'doc_count': 2}]","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.378016Z","level":"info","event":"Done. Returned value was: None","logger":"airflow.task.operators.airflow.providers.standard.operators.python.PythonOperator","filename":"python.py","lineno":217}
+{"timestamp":"2025-12-23T14:59:35.389616Z","level":"info","event":"Task instance in success state","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.389690Z","level":"info","event":" Previous state of the Task instance: TaskInstanceState.RUNNING","logger":"task.stdout"}
+{"timestamp":"2025-12-23T14:59:35.389795Z","level":"info","event":"Task operator:<Task(PythonOperator): post_checks>","logger":"task.stdout"}
