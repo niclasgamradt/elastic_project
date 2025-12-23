@@ -5,3 +5,11 @@ data/
 
 # Local TODO (not committed)
 TODO.local.md
+
+airflow/config/simple_auth_manager_passwords.json
+airflow_runtime/config/simple_auth_manager_passwords.json
+
+AIRFLOW__CORE__FERNET_KEY=xfQvJzM_UqjNJ53sIR3aSAB0CYFEgKxEmICI7BIgEyM=
+
+airflow_runtime/
+
