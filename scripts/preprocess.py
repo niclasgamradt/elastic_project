@@ -28,15 +28,25 @@ def normalize_whitespace(text: str) -> str:
 
 def parse_timestamp(value: Optional[str]) -> Optional[str]:
     """
-    Minimal robust: akzeptiert ISO-ähnliche Strings.
-    Für echte Quellen später gezielt erweitern.
+    Normalisiert auf ISO-8601.
+    Unterstützt u.a.:
+    - 20251223T143230Z
+    - ISO8601 (wird durchgereicht)
     """
     if not value:
         return None
-    # Wenn schon ISO ist, lassen wir es.
-    # (Optional: hier später echte Parserlogik ergänzen)
-    return value
 
+    v = value.strip()
+
+    # Format: YYYYmmddTHHMMSSZ
+    try:
+        dt = datetime.strptime(v, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    except ValueError:
+        pass
+
+    # Wenn es schon wie ISO aussieht, lassen wir es (minimal)
+    return v
 
 def make_doc_id(source: str, url: str, published_at: str) -> str:
     base = f"{source}|{url}|{published_at}".encode("utf-8")
