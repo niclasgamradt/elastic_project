@@ -5,7 +5,8 @@ from typing import Any, Dict, Tuple
 
 from scripts.config import SETTINGS
 
-BASE = Path("db/elastic")
+from scripts.config import PROJECT_ROOT
+BASE = PROJECT_ROOT / "db" / "elastic"
 
 TEMPLATE_NAME = "data-template"
 PIPELINE_NAME = "standardize-v1"
