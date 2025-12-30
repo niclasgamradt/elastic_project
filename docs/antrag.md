@@ -1,3 +1,4 @@
+## 1. Projekttitel
 **Qualitätssicherung und Vergleichsanalyse: Hochschul-Wetterstation vs. externe Wetterstationen**
 
 ## 2. Ausgangslage / Motivation
@@ -51,20 +52,3 @@ Im Fokus steht Data Engineering (Pipeline, Datenmodell, Speicherung, Automatisie
 - Dokumentation der Designentscheidungen (Schema, `_id`, Shards/Replicas, Aliase, QC-Regeln)
 - Smoke-Tests (Cluster Health, `_count`, Beispielquery, Beispielaggregation)
 - Kurze Demo-Abfragen (z. B. Abweichung pro Tag, Ausfallzeiten, Top-Abweichungen)
-
-## 9. Arbeitspakete / Teamaufteilung (4 Personen)
-1. **Ingestion & Airflow:** DAG, Raw Layer, Logging
-2. **Preprocessing:** Schema, Timestamp/Units, Deduplikation, QC
-3. **Elasticsearch:** Cluster, Templates/Mappings/Aliase, Bulk-Optimierung
-4. **Vergleichsjob + Tests/Doku:** Kennzahlen, Validierung, Demo-Queries
-
-## 10. Risiken / Maßnahmen
-- **Unterschiedliche Zeitauflösungen/Zeitzonen:** strikte UTC-Normalisierung und Resampling
-- **Datenlücken/Fehlmessungen:** QC-Flags, keine stillschweigende Interpolation
-- **Standort-/Höhenunterschiede:** Auswahl nahegelegener Referenzstationen, Dokumentation der Limitationen
-
-## 11. Erfolgskriterien
-- Pipeline läuft automatisiert und idempotent (keine Duplikate bei Wiederholung)
-- Daten sind sauber normalisiert, durchsuchbar und aggregierbar in Elasticsearch
-- Vergleichsindex liefert nachvollziehbare Abweichungskennzahlen und Ausfall-/Qualitätsindikatoren
-- Setup ist reproduzierbar auf neuer Maschine (Docker Compose + Skripte
