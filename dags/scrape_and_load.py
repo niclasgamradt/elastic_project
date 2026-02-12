@@ -1,5 +1,7 @@
 from pathlib import Path
 import sys
+from datetime import datetime, timedelta
+
 
 # Projekt-Root ermitteln: .../elastic_project
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +39,9 @@ with DAG(
     fetch_raw = PythonOperator(
         task_id="fetch_raw",
         python_callable=fetch_raw_main,
+        op_kwargs={"run_date": "{{ ds }}"},
+        retries=5,
+        retry_delay=timedelta(minutes=5),
     )
 
     preprocess = PythonOperator(

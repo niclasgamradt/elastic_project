@@ -1,139 +1,160 @@
-# TODO - Projektstatus und naechste Schritte
+# TODO – Projektstatus und nächste Schritte (Fokus: offene Punkte)
 
-## Gesamtfazit
-Das Projekt ist bereits als lauffaehige End-to-End-Pipeline umgesetzt:
-- Reproduzierbares Deployment per Docker Compose
-- Orchestrierung per Airflow
-- Daten-Layer (`raw`/`processed`)
-- Elasticsearch-Setup mit 3 Nodes, Templates, Pipeline und Aliases
+## Kurzstatus
 
-Es ist damit klar im **Implementierungsstatus** (nicht mehr reine Planung).
+### Bereits umgesetzt (kompakt)
+- [x] Docker-Compose Setup mit 3-Node Elasticsearch-Cluster
+- [x] Airflow-Orchestrierung (`@daily`, `catchup=False`)
+- [x] Echter API-Abgriff (BrightSky) statt Dummy-Daten
+- [x] Raw-Layer speichert unveränderte API-Responses
+- [x] Bulk-Import mit idempotenter `_id`-Strategie
+- [x] ES-Templates, Pipeline und Alias als Code
+- [x] Cluster läuft stabil (`GREEN`)
 
-## Bereits umgesetzt (nachweisbar)
+---
 
-### 1) Deployment und Reproduzierbarkeit
-- `docker-compose.yml` umfasst:
-  - Elasticsearch-Cluster mit 3 Nodes (`es01`, `es02`, `es03`)
-  - Persistente Volumes fuer alle Nodes
-  - Airflow-Stack (API-Server, Scheduler, Worker, Triggerer, DAG-Processor) mit Postgres + Redis + CeleryExecutor
-- Airflow-Container binden das Projekt nach `/opt/airflow/project` und setzen `PYTHONPATH` korrekt.
-- Ergebnis: Setup ist reproduzierbar und als Code abbildbar (ohne manuelle Klick-Konfiguration).
+# Offene Punkte (priorisiert)
 
-### 2) Elasticsearch-Zustand
-- Clusterstatus: `GREEN`
-- 3 Nodes aktiv, keine `unassigned_shards`
-- Indizes vorhanden: `data-2024`, `data-archive`
-- Alias vorhanden: `all-data` (`count=7`)
-- Shards/Replicas:
-  - `data-2024`: `1 primary + 1 replica`
-  - `data-archive`: `1 primary + 1 replica`
-- Verteilung ueber mehrere Nodes ist vorhanden.
+## 1️⃣ Pflicht: `preprocess.py` vollständig auf BrightSky umstellen
 
-### 3) Infrastructure-as-Code fuer ES
-- Konfigurationsdateien:
-  - `db/elastic/index-template.json`
-  - `db/elastic/ingest-pipeline.json`
-  - `db/elastic/aliases.json`
-- Automatisierung ueber `scripts/apply_es.py`:
-  - legt Index Template an
-  - legt Ingest Pipeline an
-  - erstellt `data-2024` und `data-archive`
-  - setzt Alias `all-data` inkl. `write_index`
-  - prueft Cluster Health
+### Problem
+- Aktueller Code ist noch auf Dummy-Struktur (`raw["items"]`) ausgelegt.
+- BrightSky liefert `raw["payload"]["weather"]`.
 
-### 4) Pipeline-Logik und Daten-Layer
-- DAG: `dags/scrape_and_load.py`
-- Schedule: `@daily` (`catchup=False`)
-- Taskfolge: `apply_es -> fetch_raw -> preprocess -> load_to_es -> post_checks`
-- Daten-Layer:
-  - `data/raw/*` (JSON-Rohdaten)
-  - `data/processed/*` (NDJSON)
-- Skripte:
-  - `fetch_raw.py`: erzeugt aktuell Dummy-Rohdaten
-  - `preprocess.py`: normalisiert Rohdaten zu NDJSON (`doc_id`, `timestamp`, `message`, ...)
-  - `load_to_es.py`: idempotenter Bulk-Import (`_id=doc_id`), nutzt Pipeline `standardize-v1`, optimiert `refresh_interval` waehrend Bulk
-  - `post_checks.py`: `health`, `count`, `last_docs` (timestamp desc), `aggregation by_source`
+### To-do
+- Iteration über `payload.weather`
+- Pro `timestamp` ein Dokument erzeugen
+- `doc_id = sha256(provider|source_id|timestamp)`
+- Felder extrahieren:
+  - temperature
+  - relative_humidity
+  - pressure_msl
+  - precipitation
+  - wind_speed
+  - wind_direction
+  - dew_point
+  - cloud_cover
+  - visibility
+  - condition / icon
+- `timestamp` als ISO8601 übernehmen
+- `processed_at` setzen
 
-## Offene Punkte (priorisiert)
+Ohne diese Anpassung funktioniert die Pipeline fachlich nicht korrekt.
 
-### A) Pflicht (hoch): Echte Datenquellen anbinden
-- **Ist:** `fetch_raw.py` nutzt Dummy-Daten.
-- **Risiko:** Scraping/periodischer Realabgriff ist nicht ausreichend nachgewiesen.
-- **To-do:**
-  - Hochschul-Wetterstation (API) anbinden
-  - Mindestens 1 Referenzquelle anbinden
-  - Timeout-/HTTP-/Empty-Response-Handling ergaenzen
-  - Rohformat unveraendert als JSON in `raw` speichern
+---
 
-### B) Pflicht (hoch): Alignment mit `docs/antrag.md`
-- **Ist:** Antrag beschreibt Wetterdaten inkl. Qualitaetsvergleich, Umsetzung wirkt aktuell generisch.
-- **Risiko:** Inkonsistenz zwischen Antrag und Implementierung.
-- **To-do (empfohlen):**
-  - Indexe fachlich umbenennen:
-    - `weather-raw-*`
-    - `weather-processed-*`
-    - `weather-compare-*` (optional zuerst nur `processed`)
-    - `stations-meta` (optional)
-  - `ES_INDEX`/`ES_ALIAS` anpassen (z. B. `weather-processed-2026`, `weather-all`)
-  - Felder in `preprocess.py` auf Wetterdaten ausrichten (`temp`, `humidity`, `pressure`, `qc_flags`)
+## 2️⃣ Pflicht: Elasticsearch-Mapping auf Wetterdaten anpassen
 
-### C) Pflicht/nah an Pflicht: Mapping-Optimierung (bewertungsrelevant)
-- **Ist:** Minimales Mapping ohne Analyzer/Normalizer/Subfields.
-- **Risiko:** Bewertungsrelevante Anforderungen (Analyzer/Tokenizer/Normalizer) nicht sichtbar.
-- **To-do (Minimalversion):**
-  - Textfelder mit Subfields:
-    - `field` als `text`
-    - `field.keyword` als `keyword` (term/sort/aggs)
-    - optional `field.sort` mit lowercase-normalizer
-  - Autocomplete via `search_as_you_type` oder `edge_ngram`
-  - In `db/elastic/index-template.json` umsetzen
+### Problem
+Aktuelles Template ist noch generisch (`title`, `message`, `url`).
 
-### D) Sinnvoll: Shard-Konzept sichtbarer machen
-- **Ist:** `number_of_shards = 1`
-- **To-do (optional):**
-  - Hauptindex auf 2-3 Primaries setzen (`replica=1` beibehalten)
-  - Als Demo fuer Verteilung/Parallelisierung begruenden
+### To-do
+- Neues Mapping definieren:
+  - `timestamp` → `date`
+  - Messwerte → `float` oder `integer`
+  - `provider`, `source_id` → `keyword`
+  - `condition`, `icon` → `keyword`
+- Alte Textfelder entfernen
+- Template in `db/elastic/index-template.json` aktualisieren
+- Indizes neu erstellen (falls nötig)
 
-### E) Sinnvoll + pruefungsfest: Nachweis-Queries ausbauen
-- **Ist:** `post_checks.py` zeigt Basischecks.
-- **To-do:**
-  - `term`-Query auf `keyword`-Feld (z. B. `source`, `station_id`)
-  - Dokumentabruf per `_doc/<id>` anhand `doc_id`
-  - Wetterbezogen statt `match` eher:
-    - `range` (letzte 24h, Temperaturbereich)
-    - `date_histogram` (pro Stunde/Tag)
-    - Kennzahlen: `avg(temp)`, `max(delta)`, `missing_rate`
+---
 
-### F) Pflichtnah: Dokumentation/Runbook vervollstaendigen
-- **Ist:** README ist nutzbar, aber knapp.
-- **To-do:**
-  - Quellen (Name/URL) dokumentieren
-  - Intervall (`daily`/`hourly`) und Begruendung angeben
-  - Datenmodell (`raw` vs. `processed`) erklaeren
-  - Reproduktionsablauf dokumentieren (`docker compose up`, optional Airflow Trigger, erwartete Outputs)
-  - Klarstellen: keine manuellen Schritte, alles per Skripten
+## 3️⃣ Pflichtnah: Index-Namensraum mit Antrag angleichen
 
-## Statusuebersicht
+### Problem
+Aktuell:
+- `data-2024`
+- `all-data`
 
-### Fertig / Nachweisbar
-- [x] 3-Node Elasticsearch-Cluster mit Persistenz (`GREEN`, Shards verteilt)
-- [x] Airflow in Compose, DAG vorhanden, periodischer Schedule
-- [x] Raw-/Processed-Layer vorhanden
-- [x] Externe Vorverarbeitung + idempotentes Bulk-Loading
-- [x] ES-Infrastruktur als Code (Template, Pipeline, Alias)
-- [x] Post-Checks inkl. Aggregation
+Antrag beschreibt:
+- `weather-processed-*`
+- `weather-compare-*`
 
-### Offen / Muss ergaenzt werden
-- [ ] Echte Datenabgriffe (Wetterstation + Referenzquelle)
-- [ ] Konsistente Benennung und Schema laut Wetter-Antrag
-- [ ] Analyzer/Normalizer/Autocomplete/Sortfelder im Mapping
-- [ ] Erweiterte Nachweis-Queries (`term`, `_doc`, `range`, `date_histogram`)
-- [ ] Optional: Mehr Primaries fuer bessere Shard-Demo
-- [ ] Dokumentation: Quellen, Entscheidungen, reproduzierbarer Ablauf
+### To-do
+- `ES_INDEX` auf z.B. `weather-processed-2026`
+- `ES_ALIAS` auf `weather-all`
+- Template-Patterns anpassen
+- `apply_es.py` konsistent umstellen
 
-## Konkreter Arbeitsplan (minimal und sinnvoll)
-1. `fetch_raw.py` auf echte API(s) umbauen, Rohdaten unveraendert speichern.
-2. `preprocess.py` auf Wetter-Schema + `qc_flags` umstellen.
-3. `db/elastic/index-template.json` um Mapping/Normalizer/Autocomplete erweitern.
-4. `post_checks.py` um `_doc`, `term`, `range`, `date_histogram`, Kennzahlen erweitern.
-5. README mit Quellen, Intervall, Ablauf und Erwartungswerten aktualisieren.
+Ziel: Kein Widerspruch zwischen Antrag und Implementierung.
+
+---
+
+## 4️⃣ Fachlich zentral: Vergleichsquelle ergänzen
+
+BrightSky ist jetzt Primärquelle.
+
+### To-do
+- Zweite Quelle anbinden (z.B. Open-Meteo)
+- Gemeinsames Zielschema definieren
+- Vergleichskennzahlen berechnen:
+  - delta_temperature
+  - delta_pressure
+  - missing_rate
+- Optional:
+  - eigener `weather-compare-*` Index
+
+Das ist Kernbestandteil des Antrags (Qualitätssicherung).
+
+---
+
+## 5️⃣ Bewertungsrelevant: Analyzer / Normalizer ergänzen
+
+### To-do
+- Subfields für Textfelder:
+  - `condition.keyword`
+- Lowercase-Normalizer für Sortierung
+- Optional:
+  - `search_as_you_type` oder `edge_ngram` für Autocomplete
+- Mapping entsprechend erweitern
+
+---
+
+## 6️⃣ Prüfungsfest machen: Erweiterte Nachweis-Queries
+
+Aktuell nur Basis-Checks.
+
+### Ergänzen in `post_checks.py`:
+- `term`-Query auf `provider` oder `source_id`
+- `_doc/<id>` Abruf
+- `range` Query (letzte 24h)
+- `date_histogram`
+- `avg(temperature)`
+- `max(wind_speed)`
+
+Damit deckst du die typischen ES-Query-Typen vollständig ab.
+
+---
+
+## 7️⃣ Optional: Shard-Konzept demonstrativer gestalten
+
+Aktuell:
+- `number_of_shards = 1`
+
+Optional:
+- 2–3 Primaries setzen
+- Verteilung und Parallelisierung dokumentieren
+
+---
+
+# Minimaler Arbeitsplan (klar priorisiert)
+
+1. `preprocess.py` BrightSky-kompatibel machen  
+2. ES-Mapping auf Wetterdaten umstellen  
+3. Indizes/Alias auf `weather-*` umbenennen  
+4. Load & Post-Checks testen  
+5. Zweite Datenquelle anbinden  
+6. Vergleichskennzahlen implementieren  
+7. Queries erweitern  
+
+---
+
+# Zielzustand
+
+- Reproduzierbare, automatisierte Wetterdaten-Pipeline
+- Zwei Datenquellen
+- Vergleichsanalyse gespeichert
+- Sauberes ES-Mapping
+- Nachweis aller relevanten Query-Typen
+- Vollständig konsistent mit Antrag
