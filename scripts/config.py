@@ -1,4 +1,4 @@
-# Ausführliche Dokumentation:
+# See documentation:
 # docs/02_architecture.md
 
 import os
