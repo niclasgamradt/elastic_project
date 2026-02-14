@@ -1,3 +1,8 @@
+# See documentation:
+# docs/04_data_sources.md
+# docs/05_ingestion_pipeline.md
+
+
 import json
 import os
 import urllib.request
