@@ -1,3 +1,7 @@
+# See documentation:
+# docs/09_elasticsearch_index_design.md
+
+
 import json
 import urllib.request
 from pathlib import Path
@@ -40,12 +44,12 @@ def load_json(path: Path) -> Dict[str, Any]:
 def main() -> None:
     es = SETTINGS.es_url.rstrip("/")
 
-    # 1) Index Template
+    # aplly index template
     template = load_json(BASE / "index-template.json")
     st, out = http_request("PUT", f"{es}/_index_template/{TEMPLATE_NAME}", template)
     print("template:", st, out.get("acknowledged", out))
 
-    # 2) Ingest Pipeline (optional file; wenn nicht vorhanden: skip)
+    # apply ingest pipeline
     pipeline_path = BASE / "ingest-pipeline.json"
     if pipeline_path.exists():
         pipeline = load_json(pipeline_path)
@@ -54,18 +58,18 @@ def main() -> None:
     else:
         print("pipeline: skipped (no db/elastic/ingest-pipeline.json)")
 
-    # 3) Indizes anlegen (nutzen Template automatisch)
+    # 3) create indeces
     for index in ["data-2024", "data-archive"]:
         st, out = http_request("PUT", f"{es}/{index}", {})
-        # 200 = created, 400 kann "resource_already_exists_exception" sein
+        # 200 = created
         print(f"index {index}:", st, out.get("error", "ok"))
 
-    # 4) Alias setzen
+    # 4) configure aliases
     aliases = load_json(BASE / "aliases.json")
     st, out = http_request("POST", f"{es}/_aliases", aliases)
     print("aliases:", st, out.get("acknowledged", out))
 
-    # 5) Mini-Check
+    # 5) mini check
     st, out = http_request("GET", f"{es}/_cluster/health", None)
     print("health:", st, {k: out.get(k) for k in ["status", "number_of_nodes", "active_shards"]})
 
