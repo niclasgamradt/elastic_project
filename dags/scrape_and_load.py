@@ -1,3 +1,6 @@
+# See documentation:
+# docs/06_ingestion_pipeline.md
+
 from pathlib import Path
 import sys
 from datetime import datetime, timedelta

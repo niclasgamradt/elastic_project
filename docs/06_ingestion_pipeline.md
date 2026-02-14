@@ -132,3 +132,207 @@ def main(run_id: str | None = None) -> None:
 
 if __name__ == "__main__":
     main()
+```
+
+
+
+
+# scrape_and_load (Airflow DAG)
+
+## Zweck
+
+`scrape_and_load` ist der zentrale Airflow-DAG des Projekts.  
+Er orchestriert die vollständige End-to-End-Datenpipeline vom API-Abruf bis zur Speicherung in Elasticsearch.
+
+Der DAG automatisiert:
+
+- Infrastruktur-Initialisierung
+- Datenabruf von mehreren APIs
+- Vorverarbeitung
+- Bulk-Ingestion
+- technische Validierung
+
+---
+
+## Zeitsteuerung
+
+Der DAG läuft periodisch:
+
+- Schedule: `@daily`
+- `catchup=False`
+
+Das bedeutet:
+- tägliche Ausführung
+- keine rückwirkende Verarbeitung alter Zeiträume
+
+---
+
+## Task-Reihenfolge
+
+Struktur:
+
+apply_es  
+→ fetch_*  
+→ preprocess_*  
+→ load_to_es  
+→ post_checks  
+
+---
+
+## Einzelne Tasks
+
+### apply_es
+
+- Legt Index-Template an
+- Erstellt Ingest-Pipeline
+- Erstellt Indizes
+- Setzt Alias
+- Prüft Cluster-Zustand
+
+Sorgt für idempotentes Elasticsearch-Setup.
+
+---
+
+### fetch_brightsky / fetch_hs
+
+- Ruft externe APIs ab
+- Speichert Rohdaten unverändert in `data/raw/`
+- Benennt Dateien mit `run_id`
+
+---
+
+### preprocess_brightsky / preprocess_hs
+
+- Transformiert Rohdaten in gemeinsames Schema
+- Normalisiert Zeitstempel
+- Erzeugt deterministische `doc_id`
+- Schreibt NDJSON nach `data/processed/`
+
+---
+
+### load_to_es
+
+- Liest alle `processed_<run_id>__*.ndjson`
+- Führt Bulk-Ingestion aus
+- Nutzt Ingest-Pipeline
+- Optimiert temporär `refresh_interval`
+
+---
+
+### post_checks
+
+- Prüft Cluster Health
+- Prüft Dokumentanzahl
+- Führt Beispiel-Search aus
+- Führt Aggregation aus
+
+---
+
+## Multi-Source-Integration
+
+Der DAG unterstützt mehrere Datenquellen parallel.
+
+Pro Run werden mehrere Dateien verarbeitet:
+
+processed_<run_id>__brightsky.ndjson  
+processed_<run_id>__hs-worms.ndjson  
+
+Alle Daten werden in denselben Alias geladen.
+
+
+
+# Airflow
+
+## Zweck
+
+Airflow orchestriert die vollständige Datenpipeline. Dadurch laufen alle Schritte periodisch, reproduzierbar und in definierter Reihenfolge – ohne manuelle Eingriffe. Der DAG verbindet Datenquellen (APIs), Vorverarbeitung, Elasticsearch-Ingestion und abschließende Checks.
+
+## DAG
+
+Der zentrale DAG heißt `scrape_and_load` und liegt hier:
+
+- `dags/scrape_and_load.py`
+
+Wichtige Parameter:
+
+- Schedule: `@daily`
+- Catchup: `False`
+- Übergabe eines Run-Identifiers über `{{ ds }}` (Format `YYYY-MM-DD`)
+
+## Task-Reihenfolge
+
+Ablauf (logisch):
+
+1. `apply_es`
+2. `fetch_brightsky`
+3. `preprocess_brightsky`
+4. `fetch_hs`
+5. `preprocess_hs`
+6. `load_to_es`
+7. `post_checks`
+
+Hinweis: Die Reihenfolge kann bei Bedarf angepasst werden (z. B. beide Fetch-Schritte parallel, danach beide Preprocess-Schritte parallel). Wichtig ist, dass `load_to_es` erst startet, wenn alle gewünschten `processed_*` Dateien vorliegen.
+
+## Aufgaben je Task
+
+apply_es  
+Initialisiert Elasticsearch automatisiert:
+
+- legt Index-Template an
+- legt Ingest-Pipeline an
+- erstellt benötigte Indizes
+- setzt Aliases
+- führt einen kurzen Health-Check aus
+
+fetch_*  
+Ruft externe APIs ab und speichert Rohdaten unverändert im Raw-Layer:
+
+- Zielpfad: `data/raw/`
+- Dateiname: `raw_<run_id>__<provider>.json`
+
+preprocess_*  
+Transformiert Rohdaten in ein einheitliches Schema und schreibt NDJSON:
+
+- Zielpfad: `data/processed/`
+- Dateiname: `processed_<run_id>__<provider>.ndjson`
+- erzeugt deterministische `doc_id` Werte
+- normalisiert Zeitstempel (ISO-8601 / UTC)
+
+load_to_es  
+Lädt alle `processed_<run_id>__*.ndjson` Dateien des Runs via Bulk-API in Elasticsearch:
+
+- Ziel: Alias (z. B. `all-data`)
+- optionales Performance-Tuning über `refresh_interval` während Bulk
+- Nutzung der Ingest-Pipeline `standardize-v1`
+
+post_checks  
+Validiert nach der Ingestion den Cluster- und Datenzustand:
+
+- Cluster Health
+- Dokumentanzahl über `_count`
+- Beispiel-Search (`_search`)
+- einfache Aggregation (z. B. nach `provider`)
+
+## run_id-Konzept
+
+Airflow übergibt als `run_id` typischerweise:
+
+- `{{ ds }}` → `YYYY-MM-DD`
+
+Dieses Datum wird im Dateinamen verwendet, damit jeder Lauf eindeutig nachvollziehbar ist:
+
+- `raw_2026-02-12__brightsky.json`
+- `processed_2026-02-12__brightsky.ndjson`
+
+Vorteile:
+
+- klare Zuordnung Run → Dateien
+- reproduzierbares Reprocessing
+- Multi-Source-Unterstützung pro Lauf
+
+## Reproduzierbarkeit
+
+Airflow ist vollständig über Docker Compose integriert (CeleryExecutor mit Postgres + Redis). Der DAG und alle Pipeline-Skripte sind im Repository versioniert und werden in den Container gemountet.
+
+Es gibt keine manuelle Konfiguration über UI-Klicks; alle Einstellungen sind „as code“ abgebildet.
+

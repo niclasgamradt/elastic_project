@@ -1,6 +1,14 @@
-# See documentation:
-# docs/09_elasticsearch_index_design.md
-
+# ------------------------------------------------------------
+# Elasticsearch setup script
+#
+# Loads and applies:
+# - Index Template  (db/elastic/index-template.json)
+# - Ingest Pipeline (db/elastic/ingest-pipeline.json)
+# - Alias config    (db/elastic/aliases.json)
+#
+# Documentation:
+# docs/08_elasticsearch_configuration.md
+# ------------------------------------------------------------
 
 import json
 import urllib.request

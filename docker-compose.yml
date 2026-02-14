@@ -1,11 +1,18 @@
+# See documentation:
+# docs/03_cluster_design.md
+
 networks:
+  # Single internal bridge network for all services (Airflow + Elasticsearch)
   esnet:
     driver: bridge
 
 volumes:
+  # Elasticsearch data volumes (one per node) for persistent storage
   esdata01:
   esdata02:
   esdata03:
+
+  # Airflow state and runtime volumes
   airflow_postgres:
   airflow_logs:
   airflow_plugins:
@@ -13,44 +20,57 @@ volumes:
 
 x-airflow-common: &airflow-common
   image: apache/airflow:3.1.5
+  # Run Airflow as a non-root user (UID configurable via AIRFLOW_UID)
   user: "${AIRFLOW_UID:-50000}:0"
+
   environment: &airflow-env
+    # Use CeleryExecutor (requires Postgres + Redis + worker)
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+
+    # Project DAGs location inside the container
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/dags
 
+    # Airflow metadata database (Postgres)
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
 
+    # Celery broker + result backend
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
 
-    # Ihr Projekt muss im Container importierbar sein:
+    # Make the project importable inside containers (scripts/, dags/, etc.)
     PYTHONPATH: /opt/airflow/project
 
-    # Elasticsearch aus Airflow-Containern erreichbar:
+    # Elasticsearch connection settings for pipeline scripts
     ES_URL: http://es01:9200
     ES_INDEX: data-2024
     ES_ALIAS: all-data
 
+    # Airflow API secrets (must be provided via .env)
     AIRFLOW__API_AUTH__JWT_SECRET: "${AIRFLOW__API_AUTH__JWT_SECRET}"
     AIRFLOW__API__SECRET_KEY: "${AIRFLOW__API__SECRET_KEY}"
 
-
+    # API server URLs used by Airflow 3.x components
     AIRFLOW__API__BASE_URL: "http://airflow-api-server:8080"
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution/"
 
-    
+    # Simple auth manager config (user/passwords file mounted into container)
     AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "airflow:admin"
     AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: "/opt/airflow/config/simple_auth_manager_passwords.json"
 
   volumes:
+    # Mount the full project repo into the container
     - ./:/opt/airflow/project
+
+    # Persist Airflow runtime data (logs, config, plugins)
     - ./airflow_runtime/logs:/opt/airflow/logs
     - ./airflow_runtime/config:/opt/airflow/config
     - ./airflow_runtime/plugins:/opt/airflow/plugins
 
   networks: [esnet]
+
   depends_on:
+    # Ensure dependencies are ready before starting Airflow services
     postgres:
       condition: service_healthy
     redis:
@@ -58,31 +78,45 @@ x-airflow-common: &airflow-common
 
 services:
   # -------------------------
-  # Elasticsearch (3 Nodes)
+  # Elasticsearch (3-node cluster)
   # -------------------------
   es01:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION:-8.13.4}
     container_name: es01
     environment:
+      # Cluster settings
       - cluster.name=${CLUSTER_NAME:-elastic-cluster}
       - node.name=es01
       - discovery.seed_hosts=es02,es03
       - cluster.initial_master_nodes=es01,es02,es03
+
+      # Security disabled for local/demo setup
       - xpack.security.enabled=false
+
+      # Improve stability/performance in Docker
       - bootstrap.memory_lock=true
       - ES_JAVA_OPTS=-Xms${ES_HEAP:-1g} -Xmx${ES_HEAP:-1g}
+
     ulimits:
+      # Allow JVM to lock memory and increase file descriptor limits
       memlock: { soft: -1, hard: -1 }
       nofile: { soft: 65536, hard: 65536 }
+
     volumes:
+      # Persist node data on named volume
       - esdata01:/usr/share/elasticsearch/data
+
     ports:
+      # Expose HTTP API on the host (only needed for local curl access)
       - "9200:9200"
+
     healthcheck:
+      # Wait until cluster reaches at least YELLOW (primaries allocated)
       test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 30
+
     networks: [esnet]
 
   es02:
@@ -122,7 +156,7 @@ services:
     networks: [esnet]
 
   # -------------------------
-  # Airflow Dependencies
+  # Airflow dependencies (Postgres + Redis)
   # -------------------------
   postgres:
     image: postgres:16
@@ -131,6 +165,7 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     volumes:
+      # Persist Airflow metadata DB
       - airflow_postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
@@ -149,21 +184,23 @@ services:
     networks: [esnet]
 
   # -------------------------
-  # Airflow Init (läuft automatisch)
+  # Airflow init (runs once)
   # -------------------------
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
+    # Run DB migrations before starting any Airflow components
     command: -c "airflow db migrate"
     restart: "no"
 
   # -------------------------
-  # Airflow Services
+  # Airflow services
   # -------------------------
   airflow-api-server:
     <<: *airflow-common
     command: airflow api-server
     ports:
+      # Expose Airflow API/UI on the host
       - "8080:8080"
     depends_on:
       airflow-init:

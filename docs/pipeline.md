@@ -111,26 +111,47 @@ Das Skript prüft:
 
 Bei Fehlern wird der Prozess kontrolliert abgebrochen.
 
+
+
+
+
+# post_checks.py
+
+## Zweck
+
+`post_checks.py` führt nach dem Bulk-Import eine technische Validierung der geladenen Daten im Elasticsearch-Cluster durch.
+
+Es überprüft:
+
+- Erreichbarkeit des Clusters
+- Anzahl der gespeicherten Dokumente
+- Abrufbarkeit der Daten über `_search`
+- einfache Aggregationen
+
 ---
 
-## Technische Kernpunkte
+## Durchgeführte Prüfungen
 
-- Multi-Provider-Unterstützung pro Run
-- Chunked Bulk-Verarbeitung
-- Alias als Write-Target
-- Ingest-Pipeline-Nutzung
-- Refresh-Optimierung
-- Saubere Fehleranalyse
+1. Cluster Health  
+   GET /_cluster/health  
+   Prüft Status und Node-Anzahl.
+
+2. Dokumentanzahl  
+   GET /<alias>/_count  
+   Verifiziert, dass Dokumente erfolgreich geschrieben wurden.
+
+3. Beispiel-Suche  
+   `_search` mit Sortierung nach `timestamp` (desc).  
+   Gibt die zuletzt indexierten Dokumente zurück.
+
+4. Aggregation  
+   Terms-Aggregation (z. B. nach `provider`).  
+   Prüft Funktionalität von Keyword-Feldern und Aggregationen.
 
 ---
 
-## Bedeutung im Projekt
+## Rolle in der Pipeline
 
-`load_to_es.py` demonstriert:
+fetch_* → preprocess_* → load_to_es → post_checks
 
-- Verständnis der Elasticsearch Bulk API
-- Shard-Verteilung über `_id`
-- Alias-Strategie
-- Performance-Tuning
-- Reproduzierbare Data-Ingestion
-
+`post_checks` ist der finale Validierungsschritt nach der Ingestion.

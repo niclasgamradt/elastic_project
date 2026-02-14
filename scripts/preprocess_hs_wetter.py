@@ -1,3 +1,6 @@
+# See documentation:
+# docs/06_preprocessing.md
+
 import hashlib
 import json
 import os

@@ -1,3 +1,6 @@
+# See documentation:
+# docs/pipeline.md
+
 import json
 import urllib.request
 from typing import Any, Dict, List

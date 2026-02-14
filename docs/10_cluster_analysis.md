@@ -10,5 +10,3 @@
 - CPU Load
 - Shard-Verteilung
 
-## Ziel
-Nachweis von Stabilität und Skalierung.

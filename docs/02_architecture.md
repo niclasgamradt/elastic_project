@@ -11,8 +11,6 @@
 - Alias als Write-Target
 - Persistente Volumes
 
-Ziel: Skalierung, Redundanz, Nachvollziehbarkeit.
-
 
 ### Python-Paketstruktur
 
