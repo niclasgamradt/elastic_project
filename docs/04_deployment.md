@@ -105,3 +105,24 @@ API-Endpoint der Hochschul-Wetterstation.
    docker compose up
 
 Die Konfiguration ist vollständig externalisiert und ermöglicht reproduzierbare Deployments ohne Codeänderung.
+
+
+# Continuous Integration (CI)
+
+## Ziel
+Automatische Ausführung der Test-Suite bei jedem Push und Pull Request.
+
+## Workflow
+- GitHub Actions
+- pytest
+- optional: Elasticsearch Service Container
+
+## Pipeline-Schritte
+1. Checkout
+2. Python Setup
+3. Dependency Installation
+4. Test Execution
+
+## Qualitätsziel
+- Tests müssen grün sein
+- Merge in main nur bei erfolgreicher CI

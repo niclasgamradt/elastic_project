@@ -7,6 +7,23 @@ Dieses Repository implementiert eine periodische Data-Engineering-Pipeline zur E
 Datenfluss:
 Fetch (API) → Raw (JSON) → Preprocess (NDJSON) → Bulk Load (ES) → Post Checks
 
+## Continuous Integration (CI)
+
+Das Repository ist an eine GitHub Actions CI-Pipeline angebunden.
+
+Bei jedem Push und Pull Request wird automatisch:
+
+- die Python-Umgebung aufgebaut
+- die Test-Suite (`pytest`) ausgeführt
+- der Build bei Fehlern abgebrochen
+
+Ein Merge in `main` erfolgt nur bei erfolgreicher Testausführung.
+
+Details zur CI-Konfiguration befinden sich in:
+
+`docs/04_deployment.md`
+
+
 
 ## Laufzeitumgebung (Docker Compose)
 
