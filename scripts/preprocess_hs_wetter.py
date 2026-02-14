@@ -54,32 +54,36 @@ def main(run_id: str | None = None) -> None:
         raise RuntimeError("HS payload missing 'ts'")
     ts_iso = unix_to_iso(int(ts_unix))
 
+    temp_out = (payload.get("temperature") or {}).get("out")
+    rh_out = (payload.get("humidity") or {}).get("out")
+    wind_kmh = ((payload.get("wind") or {}).get("speed") or {}).get("kmh")
+    wind_deg = ((payload.get("wind") or {}).get("dir") or {}).get("deg")
+
     doc = {
         "doc_id": make_doc_id(provider, station_id, ts_iso),
         "provider": provider,
-        "station_id": station_id,
+        "source_id": station_id,
         "timestamp": ts_iso,
         "processed_at": datetime.now(timezone.utc).isoformat(),
 
-        # Common weather fields (vereinheitlicht)
-        "temperature_out": (payload.get("temperature") or {}).get("out"),
-        "temperature_in": (payload.get("temperature") or {}).get("in"),
-        "relative_humidity_out": (payload.get("humidity") or {}).get("out"),
-        "relative_humidity_in": (payload.get("humidity") or {}).get("in"),
+        "temperature": temp_out,
+        "relative_humidity": rh_out,
         "pressure_msl": payload.get("baro"),
-        "wind_speed_kmh": ((payload.get("wind") or {}).get("speed") or {}).get("kmh"),
-        "wind_dir_deg": ((payload.get("wind") or {}).get("dir") or {}).get("deg"),
-        "wind_dir_text": ((payload.get("wind") or {}).get("dir") or {}).get("text"),
-        "rain_rate": ((payload.get("rain") or {}).get("rate")),
-        "rain_day": ((payload.get("rain") or {}).get("day")),
-        "condition_rule": ((payload.get("forecast") or {}).get("rule")),
-        "condition_val": ((payload.get("forecast") or {}).get("val")),
+        "wind_speed": (wind_kmh / 3.6) if wind_kmh is not None else None,
+        "wind_direction": wind_deg,
 
-        # optional
-        "battery_v": payload.get("batt"),
-        "sun_uv": ((payload.get("sun") or {}).get("uv")),
-        "sun_rad": ((payload.get("sun") or {}).get("rad")),
+        "dew_point": None,
+        "precipitation": None,
+        "wind_gust_speed": None,
+        "wind_gust_direction": None,
+        "cloud_cover": None,
+        "sunshine": None,
+        "visibility": None,
+        "condition": None,
+        "icon": None,
+        "solar": None,
     }
+
 
     out_file = SETTINGS.processed_dir / f"processed_{run_id}__hs-worms.ndjson"
 

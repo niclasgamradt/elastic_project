@@ -1,261 +1,212 @@
-# Index Template
+# Elasticsearch Index Design
 
-## Settings
-- number_of_shards
-- number_of_replicas
-- refresh_interval
+Die Elasticsearch-Konfiguration erfolgt automatisiert und reproduzierbar über:
 
-## Mapping
-- text vs keyword
-- numerische Felder
-- date Felder
+- `db/elastic/index-template.json`
+- `db/elastic/aliases.json`
+- `db/elastic/ingest-pipeline.json`
+- `scripts/apply_es.py`
 
-## Alias
-- all-data als Write-Target
+Das Projekt verwendet ein **provider-unabhängiges Kernschema**.  
+Alle APIs werden im `preprocess_*`-Schritt auf dieses Schema normalisiert.  
+Provider-spezifische Felder werden nicht indexiert.
 
+Die Ingestion erfolgt ausschließlich über den Alias `all-data`.
 
-## apply_es.py
+## Index Template
 
-`apply_es.py` initialisiert und konfiguriert den Elasticsearch-Cluster vollständig automatisiert.
+### Settings
 
-Dieses Skript:
+Das Template definiert die grundlegenden Index-Einstellungen:
 
-- legt das Index-Template an (Settings und Mapping)
-- erstellt die Ingest-Pipeline (sofern definiert)
-- erzeugt die benötigten Indizes (idempotent)
-- setzt die Alias-Konfiguration (inkl. Write-Index)
-- führt eine grundlegende Cluster-Health-Prüfung durch
+- `number_of_shards`
+- `number_of_replicas`
+- `refresh_interval`
 
+Während der Bulk-Ingestion wird `refresh_interval` temporär auf `-1` gesetzt und anschließend wieder auf `1s` zurückgestellt.
 
-# aliases.json
+### Mapping
 
-## Header für die Datei (Beispiel)
+Das Projekt verwendet ein fest definiertes Kernschema.
 
-Da JSON offiziell keine Kommentare unterstützt, kann man einen dokumentarischen Hinweis oberhalb der Datei oder in der Doku platzieren.
-
-Beispiel für einen Header-Kommentar (nicht produktiv verwenden):
-
+```json
 {
-  "_comment": "Defines Elasticsearch alias configuration. Applied automatically by apply_es.py during cluster initialization."
+  "dynamic": false
 }
+```
 
----
+Bedeutung von `dynamic: false`:
 
-## Zweck
+- Zusätzliche Felder werden beim Indexieren ignoriert.
+- Das Mapping wächst nicht dynamisch.
+- Das Schema bleibt stabil und kontrollierbar.
+- Neue APIs erfordern keine Template-Anpassung, solange sie das Kernschema befüllen.
 
-aliases.json definiert die Alias-Konfiguration für den Elasticsearch-Cluster.
+#### Aktuelles Kernschema
 
-Ein Alias ist ein logischer Name, der auf einen oder mehrere physische Indizes verweist.  
-Er ermöglicht es, Indexnamen vom Anwendungscode zu entkoppeln.
+**Identifikationsfelder**
 
----
+- `doc_id` (`keyword`)
+- `provider` (`keyword`)
+- `source_id` (`keyword`)
+- `timestamp` (`date`)
+- `processed_at` (`date`)
 
-## Beispielkonfiguration
+**Meteorologische Messwerte**
 
+- `temperature` (`float`)
+- `relative_humidity` (`integer`)
+- `dew_point` (`float`)
+- `pressure_msl` (`float`)
+- `precipitation` (`float`)
+- `wind_speed` (`float`)
+- `wind_direction` (`integer`)
+- `wind_gust_speed` (`float`)
+- `wind_gust_direction` (`integer`)
+- `cloud_cover` (`integer`)
+- `sunshine` (`float`)
+- `visibility` (`integer`)
+- `condition` (`keyword`)
+- `icon` (`keyword`)
+- `solar` (`float`)
+
+Alle Felder sind optional. Fehlende Werte werden als `null` gespeichert.
+
+#### String-Felder: `text` vs. `keyword`
+
+Im aktuellen Projekt werden ausschließlich `keyword`-Felder für String-Werte verwendet, da:
+
+- keine Volltextsuche erforderlich ist
+- Filter- und Aggregationsabfragen im Vordergrund stehen
+
+`text`-Felder werden im Kernschema nicht verwendet.
+
+#### Numerische Felder
+
+Numerische Messwerte werden als:
+
+- `float` (z. B. Temperatur, Windgeschwindigkeit)
+- `integer` (z. B. Windrichtung, Luftfeuchtigkeit)
+
+definiert, um Aggregationen und Range-Queries zu ermöglichen.
+
+#### Date-Felder
+
+Zeitstempel (`timestamp`, `processed_at`) sind als `date` typisiert.  
+Es wird das ISO-8601-Format in UTC verwendet.
+
+## Alias-Konfiguration (`aliases.json`)
+
+### Zweck
+
+Ein Alias ist ein logischer Name, der auf einen oder mehrere physische Indizes verweist.
+
+Im Projekt wird ausschließlich der Alias `all-data` verwendet.
+
+### Aktuelle Konfiguration
+
+```json
 {
   "actions": [
-    { "add": { "index": "data-2024", "alias": "all-data", "is_write_index": true } },
+    { "add": { "index": "data-2026", "alias": "all-data", "is_write_index": true } },
     { "add": { "index": "data-archive", "alias": "all-data" } }
   ]
 }
+```
 
----
+### Bedeutung der Felder
 
-## Bedeutung der Felder
+- `index`: Konkreter physischer Indexname.
+- `alias`: Logischer Name für Lese- und Schreiboperationen.
+- `is_write_index`: Definiert den aktiven Zielindex für Schreiboperationen.
 
-index  
-Konkreter physischer Indexname.
+### Funktion im Projekt
 
-alias  
-Logischer Name, unter dem ein oder mehrere Indizes zusammengefasst werden.
-
-is_write_index  
-Legt fest, welcher Index bei Schreiboperationen verwendet wird.
-
----
-
-## Funktion im Projekt
-
-Der Alias "all-data":
+Der Alias `all-data`:
 
 - bündelt mehrere Indizes
-- dient als zentrales Schreibziel in load_to_es.py
-- erlaubt spätere Index-Rotation ohne Codeänderung
+- dient als zentrales Schreibziel in `load_to_es.py`
+- ermöglicht spätere Index-Rotation ohne Codeänderung
 
-Die Bulk-Ingestion erfolgt immer gegen den Alias, nicht gegen einen festen Index.
+Bulk-Ingestion erfolgt immer gegen den Alias, nicht gegen einen festen Indexnamen.
 
----
+### Vorteile
 
-## Vorteile
+- Entkopplung von Anwendung und Indexnamen
+- Unterstützung von Index-Rotation
+- Vereinfachte Abfragen über mehrere Indizes
+- Trennung von aktivem und archiviertem Datenbestand
 
-- Entkopplung von Anwendung und Indexnamen  
-- Unterstützung von Index-Rotation  
-- Vereinfachte Abfragen über mehrere Indizes  
-- Trennung von aktivem und archiviertem Datenbestand  
+## `apply_es.py`
 
----
+`apply_es.py` initialisiert und konfiguriert den Elasticsearch-Cluster vollständig automatisiert.
 
-## Rolle in der Pipeline
+Das Skript:
 
-apply_es.py setzt die Alias-Konfiguration automatisch beim Start.
+- registriert das Index-Template
+- registriert die Ingest-Pipeline
+- erstellt die benötigten Indizes (`data-2026`, `data-archive`)
+- setzt die Alias-Konfiguration (inklusive Write-Index)
+- führt eine grundlegende Cluster-Health-Prüfung durch
 
-Alle weiteren Komponenten (Ingestion, Abfragen, Post-Checks) greifen ausschließlich auf den Alias zu.
+Bereits existierende Indizes können eine `resource_already_exists_exception` erzeugen.  
+Dieses Verhalten ist erwartbar und beeinträchtigt die Funktion nicht.
 
+## `index-template.json`
 
-# index-template.json
+### Zweck
 
-## Zweck
+`index-template.json` definiert das verbindliche Index-Template des Projekts.
 
-index-template.json definiert das Elasticsearch Index-Template für das Projekt.
+Es legt fest:
 
-Ein Index-Template legt fest:
+- Index-Settings
+- das Kern-Mapping
+- die Schema-Strategie (`dynamic: false`)
 
-- Settings (z. B. Shards, Replicas, refresh_interval)
-- Mapping (Datentypen der Felder)
-- optionale Analyzer oder Normalizer
+Neue Indizes mit Pattern:
 
-Es wird automatisch von apply_es.py beim Start angewendet.
+- `data-*`
+- `processed-*`
 
----
+übernehmen automatisch diese Konfiguration.
 
-## Funktion im Projekt
+### Rolle in der Pipeline
 
-Das Template sorgt dafür, dass alle Indizes mit Muster:
+- `apply_es.py` registriert das Template.
+- Der Zielindex (`data-2026`) wird erstellt.
+- `load_to_es.py` schreibt über den Alias.
+- Das Template garantiert konsistente Typisierung.
 
-data-*  
-processed-*  
+## `ingest-pipeline.json`
 
-ein einheitliches Schema erhalten.
+Die Datei `db/elastic/ingest-pipeline.json` definiert eine Elasticsearch-Ingest-Pipeline.  
+Sie wird durch `apply_es.py` automatisch im Cluster registriert.
 
-Neue Indizes, die diesem Pattern entsprechen, übernehmen automatisch die definierten Einstellungen und Mappings.
+Die Pipeline wird beim Bulk-Import über folgendes Endpoint aktiviert:
 
----
+```http
+POST /_bulk?pipeline=standardize-v1
+```
 
-## Beispielstruktur
+### Aktuelle Prozessoren
 
-{
-  "index_patterns": ["data-*", "processed-*"],
-  "template": {
-    "settings": {
-      "number_of_shards": 1,
-      "number_of_replicas": 1,
-      "refresh_interval": "1s"
-    },
-    "mappings": {
-      "properties": {
-        "doc_id": { "type": "keyword" },
-        "provider": { "type": "keyword" },
-        "timestamp": { "type": "date" },
-        "temperature": { "type": "float" }
-      }
-    }
-  }
-}
+- `date`: Normalisiert das Feld `timestamp`.
+- `set`: Setzt `processed_at` auf `_ingest.timestamp`.
 
----
-
-## Bedeutung der wichtigsten Einstellungen
-
-number_of_shards  
-Anzahl der Primary Shards pro Index.  
-Beeinflusst Parallelisierung und Skalierung.
-
-number_of_replicas  
-Anzahl der Replica Shards.  
-Erhöht Ausfallsicherheit und Leseskalierung.
-
-refresh_interval  
-Intervall, in dem neue Dokumente suchbar werden.
-
----
-
-## Mapping
-
-Das Mapping definiert Datentypen, z. B.:
-
-keyword  
-Nicht analysierter String. Geeignet für:
-- Filter
-- term-Queries
-- Aggregationen
-- Sortierung
-
-text  
-Analyzierter String. Geeignet für Volltextsuche.
-
-date  
-Zeitstempel im ISO-8601-Format.
-
-float / integer  
-Numerische Felder für Messwerte.
-
----
-
-## Vorteile eines Templates
-
-- Einheitliches Schema über alle Indizes
-- Vermeidung dynamischer Mapping-Fehler
-- Reproduzierbare Index-Struktur
-- Keine manuelle Konfiguration in Kibana
-
----
-
-## Rolle in der Pipeline
-
-apply_es.py lädt das Template vor dem Erstellen der Indizes.
-
-load_to_es.py schreibt Daten anschließend in Indizes, die dieses Template automatisch verwenden.
-
-
-
-
-# ingest-pipeline.json
-
-Die Datei `db/elastic/ingest-pipeline.json` definiert eine **Elasticsearch Ingest Pipeline**.  
-Sie wird beim Setup durch `apply_es.py` automatisch im Cluster registriert.
-
-Eine Ingest-Pipeline verarbeitet Dokumente **beim Indexieren** und kann Felder:
-
-- transformieren  
-- berechnen  
-- umbenennen  
-- validieren  
-- normalisieren  
-
-Die Pipeline wird beim Bulk-Import über den Parameter  
-`?pipeline=standardize-v1` aktiviert.
-
----
-
-## Zweck im Projekt
-
-Die Ingest-Pipeline übernimmt einfache Standardisierungen direkt im Cluster, z. B.:
-
-- Vereinheitlichung von Feldnamen  
-- Setzen von Default-Werten  
-- Konvertierungen (z. B. Typanpassungen)  
-- Ergänzung technischer Metadaten  
-
-Damit bleibt:
-
-- `preprocess_*.py` für fachliche Transformation zuständig  
-- Elasticsearch für indexnahe technische Verarbeitung zuständig  
-
----
+Die Pipeline enthält keine fachliche Transformationslogik.  
+Fachliche Normalisierung erfolgt ausschließlich im `preprocess_*`-Schritt.
 
 ## Architekturprinzip
 
-1. Rohdaten → `fetch_*`
-2. Normalisierung → `preprocess_*`
-3. Indexnahe Standardisierung → **Ingest Pipeline**
-4. Speicherung → Zielindex (über Alias)
+- Rohdaten -> `fetch_*`
+- Normalisierung -> `preprocess_*`
+- Indexnahe Standardisierung -> Ingest-Pipeline
+- Speicherung -> Zielindex über Alias
 
-Die Pipeline ist Teil des Infrastructure-as-Code-Konzepts und wird reproduzierbar über `apply_es.py` angelegt.
+Dieses Design ermöglicht:
 
----
-
-## Dokumentationsverweis
-
-Details zur Pipeline-Konfiguration befinden sich in:
-
-`docs/08_elasticsearch_configuration.md`
+- reproduzierbare Cluster-Konfiguration
+- provider-unabhängiges Schema
+- kontrollierte Mapping-Strategie
+- skalierbare Integration weiterer APIs

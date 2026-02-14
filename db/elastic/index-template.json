@@ -7,15 +7,34 @@
       "refresh_interval": "1s"
     },
     "mappings": {
+      "dynamic": false,
       "properties": {
         "doc_id": { "type": "keyword" },
-        "source": { "type": "keyword" },
-        "url": { "type": "keyword" },
-        "title": { "type": "text" },
-        "message": { "type": "text" },
+        "provider": { "type": "keyword" },
+        "source_id": { "type": "keyword" },
         "timestamp": { "type": "date" },
-        "processed_at": { "type": "date" }
+        "processed_at": { "type": "date" },
+
+        "temperature": { "type": "float" },
+        "relative_humidity": { "type": "integer" },
+        "dew_point": { "type": "float" },
+        "pressure_msl": { "type": "float" },
+        "precipitation": { "type": "float" },
+
+        "wind_speed": { "type": "float" },
+        "wind_direction": { "type": "integer" },
+        "wind_gust_speed": { "type": "float" },
+        "wind_gust_direction": { "type": "integer" },
+
+        "cloud_cover": { "type": "integer" },
+        "sunshine": { "type": "float" },
+        "visibility": { "type": "integer" },
+
+        "condition": { "type": "keyword" },
+        "icon": { "type": "keyword" },
+        "solar": { "type": "float" }
       }
     }
+
   }
 }

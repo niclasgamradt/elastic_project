@@ -7,7 +7,7 @@
 # - Alias config    (db/elastic/aliases.json)
 #
 # Documentation:
-# docs/08_elasticsearch_configuration.md
+# docs/09_elasticsearch_index_design.md
 # ------------------------------------------------------------
 
 import json
@@ -66,11 +66,12 @@ def main() -> None:
     else:
         print("pipeline: skipped (no db/elastic/ingest-pipeline.json)")
 
-    # 3) create indeces
-    for index in ["data-2024", "data-archive"]:
+# 3) create indices (write index + optional archive)
+    indices = [SETTINGS.index_name, "data-archive"]
+    for index in indices:
         st, out = http_request("PUT", f"{es}/{index}", {})
-        # 200 = created
         print(f"index {index}:", st, out.get("error", "ok"))
+
 
     # 4) configure aliases
     aliases = load_json(BASE / "aliases.json")

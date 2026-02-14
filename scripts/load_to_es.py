@@ -97,17 +97,21 @@ def build_bulk_body(target: str, docs: List[Dict]) -> str:
     """
     Build NDJSON bulk request body.
 
-    Uses deterministic _id (doc_id) to ensure idempotent indexing.
+    Fails if a document has no doc_id (no silent drops).
     """
     lines: List[str] = []
+
     for d in docs:
         doc_id = d.get("doc_id")
         if not doc_id:
-            continue
+            raise ValueError(f"Missing doc_id in document: {d}")
+
         action = {"index": {"_index": target, "_id": doc_id}}
         lines.append(json.dumps(action, ensure_ascii=False))
         lines.append(json.dumps(d, ensure_ascii=False))
+
     return "\n".join(lines) + "\n"
+
 
 
 def parse_bulk_response(resp_text: str) -> Tuple[bool, Optional[Dict]]:
@@ -179,6 +183,12 @@ def main(run_id: str | None = None) -> None:
 
                 items = json.loads(text).get("items", [])
                 total_actions += len(items)
+
+                if len(items) != len(part):
+                    raise RuntimeError(
+                        f"Bulk mismatch: sent {len(part)} docs but ES processed {len(items)} items"
+                    )
+
                 print(f"Bulk ok: {len(items)} actions (total {total_actions})")
 
     finally:
