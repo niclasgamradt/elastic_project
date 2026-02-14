@@ -80,3 +80,4 @@ Detaillierte Projektdokumentation (Architektur, Designentscheidungen, Datenmodel
 
 ```bash
 docker compose up -d
+```
