@@ -16,8 +16,8 @@ class Settings:
 
     # elasticsearch
     es_url: str = os.getenv("ES_URL", "http://localhost:9200")
-    index_name: str = os.getenv("ES_INDEX", "data-2026")
-    alias_name: str = os.getenv("ES_ALIAS", "all-data")
+    index_name: str = os.getenv("ES_INDEX", "weather-processed-2026")
+    alias_name: str = os.getenv("ES_ALIAS", "weather-all")
 
     # file naming
     raw_prefix: str = "raw_"

@@ -12,15 +12,15 @@
 
 import json
 import urllib.request
+import urllib.error
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
-from scripts.config import SETTINGS
+from scripts.config import SETTINGS, PROJECT_ROOT
 
-from scripts.config import PROJECT_ROOT
 BASE = PROJECT_ROOT / "db" / "elastic"
 
-TEMPLATE_NAME = "data-template"
+TEMPLATE_NAME = "weather-template"
 PIPELINE_NAME = "standardize-v1"
 
 
@@ -49,15 +49,66 @@ def load_json(path: Path) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def current_alias_indices(es_base: str, alias: str) -> List[str]:
+    """
+    Returns a list of index names currently associated with the given alias.
+    If alias does not exist -> [].
+    """
+    st, out = http_request("GET", f"{es_base}/_alias/{alias}", None)
+    if st == 404:
+        return []
+    if st >= 300:
+        raise RuntimeError(f"Failed to read alias {alias}: status={st}, body={out}")
+    return list(out.keys())
+
+
+def apply_aliases_idempotent(es_base: str, aliases_payload: Dict[str, Any]) -> None:
+    """
+    Makes alias application idempotent by removing the alias from all currently linked indices first,
+    then applying the actions from aliases.json.
+    """
+    actions = aliases_payload.get("actions", [])
+    if not isinstance(actions, list) or not actions:
+        raise ValueError("aliases.json must contain a non-empty 'actions' array")
+
+    # Determine alias name(s) used in the add-actions. (We assume all actions refer to the same alias.)
+    alias_names = []
+    for a in actions:
+        add = a.get("add")
+        if isinstance(add, dict) and "alias" in add:
+            alias_names.append(add["alias"])
+
+    alias_names = sorted(set(alias_names))
+    if not alias_names:
+        raise ValueError("aliases.json contains no add-actions with an 'alias' field")
+
+    if len(alias_names) > 1:
+        # Still supported, we just handle all found aliases.
+        pass
+
+    final_actions: List[Dict[str, Any]] = []
+
+    # Remove aliases from existing indices to avoid conflicts (idempotent)
+    for alias in alias_names:
+        for idx in current_alias_indices(es_base, alias):
+            final_actions.append({"remove": {"index": idx, "alias": alias}})
+
+    # Add desired alias configuration
+    final_actions.extend(actions)
+
+    st, out = http_request("POST", f"{es_base}/_aliases", {"actions": final_actions})
+    print("aliases:", st, out.get("acknowledged", out))
+
+
 def main() -> None:
     es = SETTINGS.es_url.rstrip("/")
 
-    # aplly index template
+    # 1) Apply index template
     template = load_json(BASE / "index-template.json")
     st, out = http_request("PUT", f"{es}/_index_template/{TEMPLATE_NAME}", template)
     print("template:", st, out.get("acknowledged", out))
 
-    # apply ingest pipeline
+    # 2) Apply ingest pipeline (optional)
     pipeline_path = BASE / "ingest-pipeline.json"
     if pipeline_path.exists():
         pipeline = load_json(pipeline_path)
@@ -66,19 +117,17 @@ def main() -> None:
     else:
         print("pipeline: skipped (no db/elastic/ingest-pipeline.json)")
 
-# 3) create indices (write index + optional archive)
-    indices = [SETTINGS.index_name, "data-archive"]
+    # 3) Create indices (write index from config + archive)
+    indices = [SETTINGS.index_name, "weather-archive"]
     for index in indices:
         st, out = http_request("PUT", f"{es}/{index}", {})
         print(f"index {index}:", st, out.get("error", "ok"))
 
+    # 4) Configure aliases (idempotent)
+    aliases_payload = load_json(BASE / "aliases.json")
+    apply_aliases_idempotent(es, aliases_payload)
 
-    # 4) configure aliases
-    aliases = load_json(BASE / "aliases.json")
-    st, out = http_request("POST", f"{es}/_aliases", aliases)
-    print("aliases:", st, out.get("acknowledged", out))
-
-    # 5) mini check
+    # 5) Mini health check
     st, out = http_request("GET", f"{es}/_cluster/health", None)
     print("health:", st, {k: out.get(k) for k in ["status", "number_of_nodes", "active_shards"]})
 
