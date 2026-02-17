@@ -1,11 +1,11 @@
-# See documentation:
 # docs/06_preprocessing.md
 
 import hashlib
 import json
 from datetime import datetime, timezone
+import os
 from pathlib import Path
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, List, Optional
 
 from scripts.config import SETTINGS
 
@@ -19,51 +19,56 @@ def make_doc_id(provider: str, source_id: str, ts: str) -> str:
     return hashlib.sha256(base).hexdigest()
 
 
+def _safe_get(arr: Any, i: int) -> Any:
+    """Return arr[i] if arr is a list and index exists, else None."""
+    if isinstance(arr, list) and 0 <= i < len(arr):
+        return arr[i]
+    return None
+
+
 def normalize_ts(ts: str) -> str:
     dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 def iter_processed_docs(raw: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
-    provider = raw.get("provider") or "brightsky"
+    provider = raw.get("provider") or "open-meteo"
     payload = raw.get("payload") or {}
-    weather = payload.get("weather") or []
 
-    for w in weather:
-        ts = (w.get("timestamp") or "").strip()
-        source_id = str(w.get("source_id") or "unknown")
+    hourly = payload.get("hourly") or {}
+    times: List[str] = hourly.get("time") or []
+
+    lat = str(raw.get("lat") or payload.get("latitude") or "unknown")
+    lon = str(raw.get("lon") or payload.get("longitude") or "unknown")
+    source_id = os.getenv("WORMS_SOURCE_ID", "56867")
+
+    processed_at = datetime.now(timezone.utc).isoformat()
+
+    for i, ts in enumerate(times):
+        ts = (ts or "").strip()
+        if not ts:
+            continue
 
         yield {
-            "doc_id": make_doc_id(provider, source_id, ts),
+            "doc_id": make_doc_id(provider, str(source_id), normalize_ts(ts)),
             "provider": provider,
-            "source_id": source_id,
+            "source_id": str(source_id),
             "timestamp": normalize_ts(ts),
-            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "processed_at": processed_at,
 
-            "temperature": w.get("temperature"),
-            "relative_humidity": w.get("relative_humidity"),
-            "dew_point": w.get("dew_point"),
-            "pressure_msl": w.get("pressure_msl"),
-            "precipitation": w.get("precipitation"),
-            "wind_speed": w.get("wind_speed"),
-            "wind_direction": w.get("wind_direction"),
-            "wind_gust_speed": w.get("wind_gust_speed"),
-            "wind_gust_direction": w.get("wind_gust_direction"),
-            "cloud_cover": w.get("cloud_cover"),
-            "sunshine": w.get("sunshine"),
-            "visibility": w.get("visibility"),
-            "condition": w.get("condition"),
-            "icon": w.get("icon"),
-            "solar": w.get("solar"),
+            "temperature": _safe_get(hourly.get("temperature_2m"), i),
+            "relative_humidity": _safe_get(hourly.get("relativehumidity_2m"), i),
+            "pressure_msl": _safe_get(hourly.get("pressure_msl"), i),
+            "precipitation": _safe_get(hourly.get("precipitation"), i),
         }
 
 
 def main(run_id: str | None = None) -> None:
     if not run_id:
-        raise ValueError("run_id required for preprocess_brightsky")
+        raise ValueError("run_id required for preprocess_open_meteo")
 
     ensure_dir(SETTINGS.processed_dir)
 
-    provider = "brightsky"
+    provider = "open-meteo"
     raw_file = SETTINGS.raw_dir / f"raw_{run_id}__{provider}.json"
     if not raw_file.exists():
         raise FileNotFoundError(raw_file)
