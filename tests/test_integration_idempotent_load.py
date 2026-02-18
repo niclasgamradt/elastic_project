@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 
 import scripts.load_to_es as lte
-from scripts.config import Settings, SETTINGS as GLOBAL_SETTINGS
+from scripts.config import SETTINGS as GLOBAL_SETTINGS, Settings
 
 
 def es_get(path: str) -> dict:
-    url = GLOBAL_SETTINGS.es_url.rstrip("/") + path
+    url = f"{GLOBAL_SETTINGS.es_url.rstrip('/')}{path}"
     with urllib.request.urlopen(url, timeout=10) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
@@ -66,23 +66,26 @@ def test_bulk_load_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         raw_dir=tmp_path / "raw",
         processed_dir=processed_dir,
         es_url=GLOBAL_SETTINGS.es_url,
-        index_name="data-2026",
-        alias_name="all-data",
-        raw_prefix="raw_",
-        processed_prefix="processed_",
+        index_name=GLOBAL_SETTINGS.index_name,
+        archive_index=GLOBAL_SETTINGS.archive_index,
+        alias_name=GLOBAL_SETTINGS.alias_name,
+        raw_prefix=GLOBAL_SETTINGS.raw_prefix,
+        processed_prefix=GLOBAL_SETTINGS.processed_prefix,
     )
     monkeypatch.setattr(lte, "SETTINGS", test_settings)
 
+    alias = test_settings.alias_name
+
     # initial count
-    before = es_get("/all-data/_count")["count"]
+    before = es_get(f"/{alias}/_count")["count"]
 
-    # load once
-    lte.main(run_id)
-    after_first = es_get("/all-data/_count")["count"]
+    # load twice
+    lte.main(run_id=run_id)
+    mid = es_get(f"/{alias}/_count")["count"]
 
-    # load same run again
-    lte.main(run_id)
-    after_second = es_get("/all-data/_count")["count"]
+    lte.main(run_id=run_id)
+    after = es_get(f"/{alias}/_count")["count"]
 
-    assert after_first >= before
-    assert after_second == after_first
+    # After first load we must have +3 docs, second load must not increase (idempotent)
+    assert mid == before + 3
+    assert after == mid
