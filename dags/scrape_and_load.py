@@ -19,6 +19,9 @@ from scripts.apply_es import main as apply_es_main
 from scripts.fetch_brightsky import main as fetch_brightsky_main
 from scripts.preprocess_brightsky import main as preprocess_brightsky_main
 
+from scripts.fetch_open_meteo import main as fetch_open_meteo_main
+from scripts.preprocess_open_meteo import main as preprocess_open_meteo_main
+
 from scripts.fetch_hs_wetter import main as fetch_hs_main
 from scripts.preprocess_hs_wetter import main as preprocess_hs_main
 
@@ -52,6 +55,18 @@ with DAG(
     preprocess_brightsky = PythonOperator(
         task_id="preprocess_brightsky",
         python_callable=preprocess_brightsky_main,
+        op_kwargs={"run_id": "{{ ds }}"},
+    )
+
+    fetch_open_meteo = PythonOperator(
+        task_id="fetch_open_meteo",
+        python_callable=fetch_open_meteo_main,
+        op_kwargs={"run_id": "{{ ds }}"},
+    )
+
+    preprocess_open_meteo = PythonOperator(
+        task_id="preprocess_open_meteo",
+        python_callable=preprocess_open_meteo_main,
         op_kwargs={"run_id": "{{ ds }}"},
     )
 
