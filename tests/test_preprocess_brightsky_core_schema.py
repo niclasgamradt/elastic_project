@@ -123,7 +123,7 @@ def test_preprocess_brightsky_produces_only_core_schema(tmp_path: Path, monkeypa
         assert set(d.keys()) <= CORE_KEYS
         assert d["provider"] == "brightsky"
         assert d["source_id"] is not None
-        assert d["timestamp"].startswith("2026-02-12T00:00:00Z")
+        assert d["timestamp"].startswith(f"{run_id}T")
         assert "processed_at" in d
 
         # Typen (minimal)
