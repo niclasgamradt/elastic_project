@@ -14,7 +14,7 @@ import json
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 
 from scripts.config import SETTINGS, PROJECT_ROOT
 
@@ -49,55 +49,18 @@ def load_json(path: Path) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def current_alias_indices(es_base: str, alias: str) -> List[str]:
-    """
-    Returns a list of index names currently associated with the given alias.
-    If alias does not exist -> [].
-    """
-    st, out = http_request("GET", f"{es_base}/_alias/{alias}", None)
-    if st == 404:
-        return []
-    if st >= 300:
-        raise RuntimeError(f"Failed to read alias {alias}: status={st}, body={out}")
-    return list(out.keys())
-
-
-def apply_aliases_idempotent(es_base: str, aliases_payload: Dict[str, Any]) -> None:
-    """
-    Makes alias application idempotent by removing the alias from all currently linked indices first,
-    then applying the actions from aliases.json.
-    """
-    actions = aliases_payload.get("actions", [])
-    if not isinstance(actions, list) or not actions:
-        raise ValueError("aliases.json must contain a non-empty 'actions' array")
-
-    # Determine alias name(s) used in the add-actions. (We assume all actions refer to the same alias.)
-    alias_names = []
-    for a in actions:
-        add = a.get("add")
-        if isinstance(add, dict) and "alias" in add:
-            alias_names.append(add["alias"])
-
-    alias_names = sorted(set(alias_names))
-    if not alias_names:
-        raise ValueError("aliases.json contains no add-actions with an 'alias' field")
-
-    if len(alias_names) > 1:
-        # Still supported, we just handle all found aliases.
-        pass
-
-    final_actions: List[Dict[str, Any]] = []
-
-    # Remove aliases from existing indices to avoid conflicts (idempotent)
-    for alias in alias_names:
-        for idx in current_alias_indices(es_base, alias):
-            final_actions.append({"remove": {"index": idx, "alias": alias}})
-
-    # Add desired alias configuration
-    final_actions.extend(actions)
-
-    st, out = http_request("POST", f"{es_base}/_aliases", {"actions": final_actions})
-    print("aliases:", st, out.get("acknowledged", out))
+def replace_placeholders(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: replace_placeholders(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [replace_placeholders(v) for v in obj]
+    if isinstance(obj, str):
+        return (
+            obj.replace("__WRITE_INDEX__", SETTINGS.index_name)
+               .replace("__ARCHIVE_INDEX__", SETTINGS.archive_index)
+               .replace("__ALIAS__", SETTINGS.alias_name)
+        )
+    return obj
 
 
 def main() -> None:
@@ -106,6 +69,8 @@ def main() -> None:
     # 1) Apply index template
     template = load_json(BASE / "index-template.json")
     st, out = http_request("PUT", f"{es}/_index_template/{TEMPLATE_NAME}", template)
+    if st >= 300:
+        raise RuntimeError(f"Template failed: status={st}, body={out}")
     print("template:", st, out.get("acknowledged", out))
 
     # 2) Apply ingest pipeline (optional)
@@ -113,19 +78,30 @@ def main() -> None:
     if pipeline_path.exists():
         pipeline = load_json(pipeline_path)
         st, out = http_request("PUT", f"{es}/_ingest/pipeline/{PIPELINE_NAME}", pipeline)
+        if st >= 300:
+            raise RuntimeError(f"Pipeline failed: status={st}, body={out}")
         print("pipeline:", st, out.get("acknowledged", out))
     else:
         print("pipeline: skipped (no db/elastic/ingest-pipeline.json)")
 
-    # 3) Create indices (write index from config + archive)
-    indices = [SETTINGS.index_name, "weather-archive"]
-    for index in indices:
+    # 3) Create indices (write + archive)
+    for index in [SETTINGS.index_name, SETTINGS.archive_index]:
         st, out = http_request("PUT", f"{es}/{index}", {})
-        print(f"index {index}:", st, out.get("error", "ok"))
+        # 200 created, 400 already exists (acceptable)
+        if st == 400 and out.get("error", {}).get("type") == "resource_already_exists_exception":
+            print(f"index {index}: 400 already exists (ok)")
+        elif st >= 300:
+            raise RuntimeError(f"Index create failed for {index}: status={st}, body={out}")
+        else:
+            print(f"index {index}:", st, "ok")
 
-    # 4) Configure aliases (idempotent)
-    aliases_payload = load_json(BASE / "aliases.json")
-    apply_aliases_idempotent(es, aliases_payload)
+    # 4) Configure alias
+    aliases = load_json(BASE / "aliases.json")
+    aliases = replace_placeholders(aliases)
+    st, out = http_request("POST", f"{es}/_aliases", aliases)
+    if st >= 300:
+        raise RuntimeError(f"Aliases failed: status={st}, body={out}")
+    print("aliases:", st, out.get("acknowledged", out))
 
     # 5) Mini health check
     st, out = http_request("GET", f"{es}/_cluster/health", None)

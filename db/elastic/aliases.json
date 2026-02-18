@@ -1,6 +1,6 @@
 {
   "actions": [
-    { "add": { "index": "weather-processed-2026", "alias": "weather-all", "is_write_index": true } },
-    { "add": { "index": "weather-archive", "alias": "weather-all" } }
+    { "add": { "index": "__WRITE_INDEX__", "alias": "__ALIAS__", "is_write_index": true } },
+    { "add": { "index": "__ARCHIVE_INDEX__", "alias": "__ALIAS__" } }
   ]
 }

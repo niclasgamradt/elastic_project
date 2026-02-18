@@ -1,29 +1,19 @@
-# See documentation:
-# docs/13_tests.md
-
 import json
-import urllib.request
-import urllib.error
 import uuid
-import pytest
+import urllib.request
 
 from scripts.config import SETTINGS
 
 
 def http_post(url: str, body: str, content_type: str) -> tuple[int, str]:
-    data = body.encode("utf-8")
     req = urllib.request.Request(
         url,
-        data=data,
+        data=body.encode("utf-8"),
         method="POST",
         headers={"Content-Type": content_type},
     )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status, resp.read().decode("utf-8")
-    except urllib.error.HTTPError as e:
-        text = e.read().decode("utf-8") if e.fp else ""
-        return e.code, text
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return resp.status, resp.read().decode("utf-8")
 
 
 def test_bulk_returns_error_on_type_conflict() -> None:
@@ -32,7 +22,7 @@ def test_bulk_returns_error_on_type_conflict() -> None:
 
     doc_id = f"bad-{uuid.uuid4()}"
 
-    # temperature ist im Mapping float -> absichtlich falscher Typ (string)
+    # temperature is mapped as float -> insert wrong type (string)
     bad_doc = {
         "doc_id": doc_id,
         "provider": "test-provider",
@@ -42,7 +32,7 @@ def test_bulk_returns_error_on_type_conflict() -> None:
         "temperature": "NOT_A_FLOAT",
     }
 
-    action = {"index": {"_index": "all-data", "_id": doc_id}}
+    action = {"index": {"_index": SETTINGS.alias_name, "_id": doc_id}}
     body = json.dumps(action) + "\n" + json.dumps(bad_doc) + "\n"
 
     status, text = http_post(bulk_url, body, "application/x-ndjson")

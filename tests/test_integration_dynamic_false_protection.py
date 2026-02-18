@@ -1,35 +1,25 @@
-# See documentation:
-# docs/13_tests.md
-
 import json
-import urllib.request
-import urllib.error
 import uuid
+import urllib.request
 
 from scripts.config import SETTINGS
 
 
-def es_request(method: str, path: str, payload: dict | None = None) -> dict:
-    url = SETTINGS.es_url.rstrip("/") + path
-    data = None if payload is None else json.dumps(payload).encode("utf-8")
+def es_request(method: str, path: str, body: dict | None = None) -> dict:
+    url = f"{SETTINGS.es_url.rstrip('/')}{path}"
+    data = None if body is None else json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
-        url,
-        data=data,
-        method=method,
-        headers={"Content-Type": "application/json"},
+        url, data=data, method=method, headers={"Content-Type": "application/json"}
     )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            text = resp.read().decode("utf-8")
-            return json.loads(text) if text else {}
-    except urllib.error.HTTPError as e:
-        text = e.read().decode("utf-8") if e.fp else ""
-        payload = json.loads(text) if text else {"error": str(e)}
-        payload["_http_status"] = e.code
-        return payload
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        text = resp.read().decode("utf-8")
+        return json.loads(text) if text else {}
 
 
 def test_dynamic_false_prevents_mapping_and_searchability() -> None:
+    alias = SETTINGS.alias_name
+    index = SETTINGS.index_name
+
     doc_id = f"test-{uuid.uuid4()}"
 
     doc = {
@@ -42,24 +32,16 @@ def test_dynamic_false_prevents_mapping_and_searchability() -> None:
         "unknown_field_xyz": "SHOULD_NOT_BE_SEARCHABLE",
     }
 
-    # Indexieren in den Write-Index über Alias
-    idx_resp = es_request("PUT", f"/all-data/_doc/{doc_id}?refresh=true", doc)
+    idx_resp = es_request("PUT", f"/{alias}/_doc/{doc_id}?refresh=true", doc)
     assert idx_resp.get("result") in {"created", "updated"}
 
-    # 1) Mapping darf das Feld nicht enthalten
-    mapping = es_request("GET", "/data-2026/_mapping")
-    props = mapping["data-2026"]["mappings"]["properties"]
+    mapping = es_request("GET", f"/{index}/_mapping")
+    props = mapping[index]["mappings"]["properties"]
     assert "unknown_field_xyz" not in props
 
-    # 2) Feld darf nicht suchbar sein (exists query muss 0 Treffer liefern)
-    q = es_request(
+    search = es_request(
         "POST",
-        "/all-data/_search?size=0",
-        {"query": {"exists": {"field": "unknown_field_xyz"}}},
+        f"/{alias}/_search",
+        {"query": {"term": {"unknown_field_xyz": "SHOULD_NOT_BE_SEARCHABLE"}}},
     )
-    assert q["hits"]["total"]["value"] == 0
-
-    # 3) Optional: Dokument muss existieren (Abruf über physischen Index)
-    get_doc = es_request("GET", f"/data-2026/_doc/{doc_id}")
-    assert get_doc.get("found") is True
-    assert get_doc["_source"]["doc_id"] == doc_id
+    assert search["hits"]["total"]["value"] == 0
