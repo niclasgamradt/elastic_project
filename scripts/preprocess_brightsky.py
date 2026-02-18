@@ -33,7 +33,7 @@ def iter_processed_docs(raw: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
         source_id = str(w.get("source_id") or "unknown")
 
         yield {
-            "doc_id": make_doc_id(provider, source_id, ts),
+            "doc_id": make_doc_id(provider, source_id, normalize_ts(ts)),
             "provider": provider,
             "source_id": source_id,
             "timestamp": normalize_ts(ts),
