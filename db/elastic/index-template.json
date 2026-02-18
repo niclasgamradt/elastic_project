@@ -1,5 +1,6 @@
 {
-  "index_patterns": ["weather-processed-*", "weather-compare-*", "weather-raw-*", "stations-*"],
+  "index_patterns": ["weather-*"],
+  "priority": 100,
   "template": {
     "settings": {
       "number_of_shards": 1,
@@ -19,44 +20,23 @@
         "processed_at": { "type": "date" },
 
         "temperature": { "type": "float" },
-        "temperature_out": { "type": "float" },
-        "temperature_in": { "type": "float" },
-
         "relative_humidity": { "type": "integer" },
-        "relative_humidity_out": { "type": "integer" },
-        "relative_humidity_in": { "type": "integer" },
-
         "dew_point": { "type": "float" },
         "pressure_msl": { "type": "float" },
         "precipitation": { "type": "float" },
 
         "wind_speed": { "type": "float" },
-        "wind_speed_kmh": { "type": "float" },
-
         "wind_direction": { "type": "integer" },
-        "wind_dir_deg": { "type": "integer" },
-        "wind_dir_text": { "type": "keyword" },
-
         "wind_gust_speed": { "type": "float" },
         "wind_gust_direction": { "type": "integer" },
 
         "cloud_cover": { "type": "integer" },
         "sunshine": { "type": "float" },
-        "solar": { "type": "float" },
         "visibility": { "type": "integer" },
 
         "condition": { "type": "keyword" },
         "icon": { "type": "keyword" },
-
-        "rain_rate": { "type": "float" },
-        "rain_day": { "type": "float" },
-
-        "battery_v": { "type": "float" },
-        "sun_uv": { "type": "integer" },
-        "sun_rad": { "type": "integer" },
-
-        "condition_rule": { "type": "integer" },
-        "condition_val": { "type": "integer" }
+        "solar": { "type": "float" }
       }
     }
   }

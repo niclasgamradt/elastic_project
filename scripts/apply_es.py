@@ -87,9 +87,8 @@ def main() -> None:
     # 3) Create indices (write + archive)
     for index in [SETTINGS.index_name, SETTINGS.archive_index]:
         st, out = http_request("PUT", f"{es}/{index}", {})
-        # 200 created, 400 already exists (acceptable)
         if st == 400 and out.get("error", {}).get("type") == "resource_already_exists_exception":
-            print(f"index {index}: 400 already exists (ok)")
+            print(f"index {index}: already exists (ok)")
         elif st >= 300:
             raise RuntimeError(f"Index create failed for {index}: status={st}, body={out}")
         else:
