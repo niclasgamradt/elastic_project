@@ -200,30 +200,3 @@ Verhindert unkontrollierte Schema-Erweiterung.
 **Bedeutung:**
 Validiert korrektes Fehlerverhalten bei Mapping-Verletzungen.
 
----
-
-# 3. Testabdeckung (Fachlich)
-
-Die Tests decken folgende Aspekte der Pipeline ab:
-
-- Datenmodell-Konsistenz
-- Idempotenz der Ingestion
-- Mapping-Kontrolle (`dynamic=false`)
-- Alias-Architektur
-- Fehlerbehandlung im Bulk-Prozess
-- Aggregationsfähigkeit der Messdaten
-
----
-
-# 4. Einordnung im Projekt
-
-Die Tests unterstützen:
-
-- Reproduzierbarkeit (Infrastructure as Code)
-- Produktionsnähe
-- Technische Robustheit
-- Wartbarkeit bei API-Erweiterung
-- Nachweisbare Datenqualität
-
-Sie bilden eine vollständige technische Absicherung
-für eine containerisierte, alias-basierte Elasticsearch-Datenpipeline.

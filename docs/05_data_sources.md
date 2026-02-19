@@ -14,3 +14,5 @@
 - Unterschiedliche Feldnamen
 - Unterschiedliche Zeitformate
 - Unterschiedliche Granularität
+
+## Open Meteo
