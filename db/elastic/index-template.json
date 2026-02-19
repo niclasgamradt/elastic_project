@@ -1,5 +1,6 @@
 {
-  "index_patterns": ["data-*", "processed-*"],
+  "index_patterns": ["weather-*"],
+  "priority": 100,
   "template": {
     "settings": {
       "number_of_shards": 1,
@@ -10,8 +11,11 @@
       "dynamic": false,
       "properties": {
         "doc_id": { "type": "keyword" },
+
         "provider": { "type": "keyword" },
         "source_id": { "type": "keyword" },
+        "station_id": { "type": "keyword" },
+
         "timestamp": { "type": "date" },
         "processed_at": { "type": "date" },
 
@@ -35,6 +39,5 @@
         "solar": { "type": "float" }
       }
     }
-
   }
 }

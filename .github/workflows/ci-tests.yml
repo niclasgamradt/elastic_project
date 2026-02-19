@@ -26,8 +26,9 @@ jobs:
 
     env:
       ES_URL: http://localhost:9200
-      ES_INDEX: data-2026
-      ES_ALIAS: all-data
+      ES_INDEX: weather-processed-2026
+      ES_ARCHIVE_INDEX: weather-archive
+      ES_ALIAS: weather-all
 
     steps:
       - name: Checkout

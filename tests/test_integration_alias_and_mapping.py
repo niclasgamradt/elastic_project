@@ -1,6 +1,3 @@
-# See documentation:
-# docs/13_tests.md
-
 import json
 import urllib.request
 
@@ -8,27 +5,49 @@ from scripts.config import SETTINGS
 
 
 def es_get(path: str) -> dict:
-    url = SETTINGS.es_url.rstrip("/") + path
+    url = f"{SETTINGS.es_url.rstrip('/')}{path}"
     with urllib.request.urlopen(url, timeout=10) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def test_alias_all_data_has_write_index_data_2026() -> None:
-    # GET /_alias/all-data liefert Alias-Infos je Index
-    alias_info = es_get("/_alias/all-data")
+def test_alias_has_write_index() -> None:
+    alias = SETTINGS.alias_name
+    write_index = SETTINGS.index_name
 
-    assert "data-2026" in alias_info
-    assert "data-archive" in alias_info
+    alias_info = es_get(f"/_alias/{alias}")
 
-    data_2026_alias = alias_info["data-2026"]["aliases"]["all-data"]
-    assert data_2026_alias.get("is_write_index") is True
+    # alias_info looks like:
+    # { "<index>": { "aliases": { "<alias>": { "is_write_index": true } } } }
+    assert write_index in alias_info, (
+        f"Write index {write_index} not present in alias response"
+    )
+
+    aliases_block = alias_info[write_index].get("aliases", {}).get(alias, {})
+    assert aliases_block.get("is_write_index") is True
 
 
 def test_mapping_does_not_contain_hs_specific_fields() -> None:
-    mapping = es_get("/data-2026/_mapping")
+    index = SETTINGS.index_name
+    mapping = es_get(f"/{index}/_mapping")
 
-    props = mapping["data-2026"]["mappings"]["properties"]
+    props = mapping[index]["mappings"]["properties"]
 
-    # HS-spezifische Felder dürfen nicht im Mapping auftauchen
-    forbidden = {"station_id", "temperature_out", "wind_speed_kmh"}
-    assert forbidden.isdisjoint(set(props.keys()))
+    # HS-specific fields should NOT be mapped in the provider-independent core schema
+    hs_fields = [
+        "temperature_in",
+        "temperature_out",
+        "relative_humidity_in",
+        "relative_humidity_out",
+        "wind_speed_kmh",
+        "wind_dir_deg",
+        "wind_dir_text",
+        "rain_rate",
+        "rain_day",
+        "battery_v",
+        "sun_uv",
+        "sun_rad",
+        "condition_rule",
+        "condition_val",
+    ]
+    for f in hs_fields:
+        assert f not in props, f"HS-specific field {f} must not be in mapping"

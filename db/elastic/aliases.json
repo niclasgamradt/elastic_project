@@ -1,6 +1,6 @@
 {
   "actions": [
-    { "add": { "index": "data-2026", "alias": "all-data", "is_write_index": true } },
-    { "add": { "index": "data-archive", "alias": "all-data" } }
+    { "add": { "index": "__WRITE_INDEX__", "alias": "__ALIAS__", "is_write_index": true } },
+    { "add": { "index": "__ARCHIVE_INDEX__", "alias": "__ALIAS__" } }
   ]
 }

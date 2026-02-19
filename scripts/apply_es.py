@@ -12,15 +12,15 @@
 
 import json
 import urllib.request
+import urllib.error
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
-from scripts.config import SETTINGS
+from scripts.config import SETTINGS, PROJECT_ROOT
 
-from scripts.config import PROJECT_ROOT
 BASE = PROJECT_ROOT / "db" / "elastic"
 
-TEMPLATE_NAME = "data-template"
+TEMPLATE_NAME = "weather-template"
 PIPELINE_NAME = "standardize-v1"
 
 
@@ -49,36 +49,60 @@ def load_json(path: Path) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def replace_placeholders(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: replace_placeholders(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [replace_placeholders(v) for v in obj]
+    if isinstance(obj, str):
+        return (
+            obj.replace("__WRITE_INDEX__", SETTINGS.index_name)
+               .replace("__ARCHIVE_INDEX__", SETTINGS.archive_index)
+               .replace("__ALIAS__", SETTINGS.alias_name)
+        )
+    return obj
+
+
 def main() -> None:
     es = SETTINGS.es_url.rstrip("/")
 
-    # aplly index template
+    # 1) Apply index template
     template = load_json(BASE / "index-template.json")
     st, out = http_request("PUT", f"{es}/_index_template/{TEMPLATE_NAME}", template)
+    if st >= 300:
+        raise RuntimeError(f"Template failed: status={st}, body={out}")
     print("template:", st, out.get("acknowledged", out))
 
-    # apply ingest pipeline
+    # 2) Apply ingest pipeline (optional)
     pipeline_path = BASE / "ingest-pipeline.json"
     if pipeline_path.exists():
         pipeline = load_json(pipeline_path)
         st, out = http_request("PUT", f"{es}/_ingest/pipeline/{PIPELINE_NAME}", pipeline)
+        if st >= 300:
+            raise RuntimeError(f"Pipeline failed: status={st}, body={out}")
         print("pipeline:", st, out.get("acknowledged", out))
     else:
         print("pipeline: skipped (no db/elastic/ingest-pipeline.json)")
 
-# 3) create indices (write index + optional archive)
-    indices = [SETTINGS.index_name, "data-archive"]
-    for index in indices:
+    # 3) Create indices (write + archive)
+    for index in [SETTINGS.index_name, SETTINGS.archive_index]:
         st, out = http_request("PUT", f"{es}/{index}", {})
-        print(f"index {index}:", st, out.get("error", "ok"))
+        if st == 400 and out.get("error", {}).get("type") == "resource_already_exists_exception":
+            print(f"index {index}: already exists (ok)")
+        elif st >= 300:
+            raise RuntimeError(f"Index create failed for {index}: status={st}, body={out}")
+        else:
+            print(f"index {index}:", st, "ok")
 
-
-    # 4) configure aliases
+    # 4) Configure alias
     aliases = load_json(BASE / "aliases.json")
+    aliases = replace_placeholders(aliases)
     st, out = http_request("POST", f"{es}/_aliases", aliases)
+    if st >= 300:
+        raise RuntimeError(f"Aliases failed: status={st}, body={out}")
     print("aliases:", st, out.get("acknowledged", out))
 
-    # 5) mini check
+    # 5) Mini health check
     st, out = http_request("GET", f"{es}/_cluster/health", None)
     print("health:", st, {k: out.get(k) for k in ["status", "number_of_nodes", "active_shards"]})
 
